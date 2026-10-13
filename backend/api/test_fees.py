@@ -85,3 +85,36 @@ class FeeApiTests(APITestCase):
             {"reason": "Bursary"}, format="json")
         self.assertEqual(result.status_code, 200)
         self.assertEqual(result.json()["status"], "waived")
+
+
+    def _pay(self, **extra):
+        body = {"student_fee": self.invoice.id, "amount": "100", "method": "cash"}
+        body.update(extra)
+        return self.client.post("/api/fees/payments/", body, format="json")
+
+    def test_bad_amounts_are_rejected_without_leaking_errors(self):
+        self.client.force_authenticate(self.admin)
+        for bad in ["abc", "", "NaN", "Infinity", "-5", "0", "10.005", None]:
+            result = self._pay(amount=bad)
+            self.assertEqual(result.status_code, 400, bad)
+            self.assertNotIn("InvalidOperation", str(result.json()))
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.amount_paid, Decimal("0.00"))
+
+    def test_unknown_or_malformed_invoice_is_404(self):
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self._pay(student_fee=999999).status_code, 404)
+        self.assertEqual(self._pay(student_fee="x").status_code, 404)
+
+    def test_duplicate_reference_is_rejected_once_recorded(self):
+        self.client.force_authenticate(self.bursar)
+        self.assertEqual(self._pay(method="mpesa", reference="QWE123").status_code, 201)
+        self.assertEqual(self._pay(method="mpesa", reference="qwe123").status_code, 409)
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.amount_paid, Decimal("100.00"))
+        self.assertEqual(self.invoice.payments.count(), 1)
+
+    def test_blank_references_are_allowed_repeatedly(self):
+        self.client.force_authenticate(self.bursar)
+        self.assertEqual(self._pay().status_code, 201)
+        self.assertEqual(self._pay().status_code, 201)

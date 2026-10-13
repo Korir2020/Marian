@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
 from django.db.models import Count, Sum
@@ -48,6 +48,18 @@ def _payment_data(x):
             "amount": _money(x.amount), "method": x.method, "reference": x.reference,
             "paid_at": x.paid_at, "received_by": x.received_by.username if x.received_by else "",
             "notes": x.notes}
+
+
+def _parse_amount(raw):
+    try:
+        v = Decimal(str(raw).strip())
+    except (InvalidOperation, ValueError, TypeError):
+        return None, "Enter a valid payment amount."
+    if not v.is_finite() or v <= 0:
+        return None, "Payment must be greater than zero."
+    if v != v.quantize(Decimal("0.01")):
+        return None, "Use at most 2 decimal places."
+    return v, None
 
 
 def _audit(request, invoice, action, details=None):
@@ -136,8 +148,11 @@ def fee_payment(request):
     school_id, error = _fee_school(request)
     if error:
         return error
+    amount, amount_error = _parse_amount(request.data.get("amount"))
+    if amount_error:
+        return Response({"detail": amount_error}, status=400)
+    reference = str(request.data.get("reference", "") or "").strip()[:80]
     try:
-        amount = Decimal(str(request.data.get("amount", "0")))
         with transaction.atomic():
             invoice = StudentFee.objects.select_for_update().select_related(
                 "student", "fee_structure").get(pk=request.data.get("student_fee"))
@@ -146,20 +161,22 @@ def fee_payment(request):
             if invoice.status in ["paid", "waived"]:
                 return Response({"detail": "This invoice cannot receive another payment."}, status=400)
             balance = invoice.amount_due - invoice.amount_paid
-            if amount <= 0 or amount > balance:
+            if amount > balance:
                 return Response({"detail": "Payment must be greater than zero and not exceed the balance."}, status=400)
+            if reference and FeePayment.objects.filter(
+                    student_fee__student__school_id=invoice.student.school_id,
+                    reference__iexact=reference).exists():
+                return Response({"detail": "A payment with this reference is already recorded."}, status=409)
             payment = FeePayment.objects.create(
                 student_fee=invoice, amount=amount, method=request.data.get("method", "cash"),
-                reference=request.data.get("reference", ""), notes=request.data.get("notes", ""),
+                reference=reference, notes=request.data.get("notes", ""),
                 received_by=request.user)
             invoice.amount_paid += amount
             invoice.status = "paid" if invoice.amount_paid >= invoice.amount_due else "partial"
             invoice.save(update_fields=["amount_paid", "status", "updated_at"])
             _audit(request, invoice, "fee_payment", {"amount": _money(amount), "payment_id": payment.id})
-    except StudentFee.DoesNotExist:
+    except (StudentFee.DoesNotExist, ValueError, TypeError):
         return Response({"detail": "Invoice not found."}, status=404)
-    except Exception as exc:
-        return Response({"detail": str(exc)}, status=400)
     return Response(_invoice_data(invoice), status=201)
 
 
