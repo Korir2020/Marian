@@ -1,0 +1,158 @@
+# Marian (School.ai.platform) - Handoff Guide
+> STATUS: read HANDOFF.md "SESSION 5 STATE" first. The logs below are history only.
+
+Multi-school Django 6.1 + DRF + SimpleJWT school management and AI learning platform, meant for commercialization.
+Owner is a beginner working in GitHub Codespaces on a phone. Give very brief steps, one action at a time, with the exact terminal location. Review existing code before changing it. Never assume a feature is complete without evidence. Security, data integrity and tests come before speed. Finish the backend before the frontend.
+
+## Run it
+- Folder: /workspaces/School.ai.platform/backend
+- Tests: python manage.py test   (all passed at the last commit)
+- Server: python manage.py runserver
+- Catalogues into a fresh DB: python manage.py loaddata schools/fixtures/catalogues.json
+- Env vars (production): DJANGO_SECRET_KEY, DJANGO_DEBUG (True/False), DJANGO_ALLOWED_HOSTS (comma list)
+- Layout: config/ (settings, urls), schools/ (models, migrations to 0023), api/ (views, serializers, permissions, workflow, analytics, papers, exams, exam_publish, audit, report_cards, auth_views, tests.py)
+
+## Rules
+- Shared curriculum definitions stay separate from each school's subjects.
+- Every feature: model > migration > serializer > API view > URL > permissions > tests.
+- Preserve existing records. No duplicate structures.
+- Roles: superadmin (is_superuser), school admin (SchoolAdminProfile), teacher (TeacherProfile). Helpers: _scope() in api/views.py, get_user_school_id() in api/permissions.py.
+- Other-school records return 404; wrong role returns 403; anonymous returns 401.
+
+## Models (schools/models.py)
+School, Student, AcademicYear, Term, Curriculum, ClassLevel, Stream, Enrollment, Subject, Performance (marks 0-100, status draft/submitted/approved/locked, entered_by, paper_number), TeacherProfile, TeacherAssignment (teacher+subject+stream), SchoolAdminProfile, SubjectDefinition, CurriculumPathway, MarkAuditLog, SubjectPaper (subject, paper_number, weight), Exam (school, term, assessment_type, class_level, draft/published), ExamResult (exam, student, overall_average, stream_rank, class_rank, subject_scores).
+
+## Endpoints
+- Auth: POST /api/auth/login/, /api/auth/refresh/, GET /api/auth/me/
+- School-scoped GET lists: /api/schools/ students/ academic-years/ terms/ streams/ enrollments/ subjects/ (curriculums/ and class-levels/ are shared)
+- Marks: GET/POST /api/performance/ (teacher must be assigned; starts as draft), PATCH /api/performance/<id>/ (edit draft only), POST /api/performance/<id>/<submit|approve|reject|lock>/
+- Audit trail: GET /api/audit-logs/ (admin; optional ?performance=id)
+- Report card: GET /api/report-card/<student>/<term>/ (approved/locked marks only)
+- Analytics: GET /api/analytics/term-summary/<term>/ (admin). If api/analytics.py also has stream_ranking, it is an old per-term ranking, replaced by exam publishing: safe to remove.
+- Paper weights: GET/POST /api/subject-papers/ (admin posts; total per subject cannot exceed 100)
+- Exams: GET/POST /api/exams/ (admin posts), POST /api/exams/<id>/publish/
+- Results (admin only): GET /api/exams/<id>/results/ (published exams), GET /api/students/<id>/exam-history/
+
+## Ranking design (owner's requirement)
+Ranking is per complete exam (all papers, e.g. Paper 1, 2, 3), not automatic each term. The school admin presses publish. Papers have admin-set weights totalling 100. Publish refuses if any paper is missing or not approved. It then computes weighted subject scores and each student's overall average, ranks in stream and class level (ties share a rank), stores one ExamResult per student (subject_scores optional extra), locks the marks used, and writes audit entries. Overall results are for tracking progress over time.
+
+## Done
+Auth and roles, school isolation on all list APIs, teacher assignments gating marks entry, mark workflow with audit, report cards, term analytics, paper weights, exams, publish with tests, CBC catalogue checked against KICD Senior School design (PE, Advanced Maths, Advanced English added), env-based settings.
+
+## Remaining backend (priority order)
+1. Admin create/update APIs: only performance, papers and exams are writable via API today. Schools, students, years, terms, streams, enrollments, subjects and teacher assignments are created through Django admin only.
+2. Put published rank/overall on report cards; decide whether teachers or parents may see results (results APIs are admin-only for now).
+3. Edit/delete SubjectPaper; block weight changes once an exam using them is published.
+4. More role edge-case tests across all endpoints.
+5. Verify 8-4-4 and Cambridge catalogues against official sources (CBC done; Forms 3-4 are the last 8-4-4 cohort; consider Kenya Sign Language).
+6. Dashboards/analytics, then AI learning, assessment and early-warning features using ExamResult history.
+7. Production readiness: rotate SECRET_KEY (old one is in git history), DEBUG off, PostgreSQL instead of sqlite, HTTPS settings, CORS for the frontend, pagination, login rate limiting, API docs, backups, monitoring.
+
+## Frontend (after backend is solid)
+Responsive for low-end Android phones and computers: Marian branding, animated pre-login screen, login, role dashboards, management screens, mark entry, report cards, analytics, notifications, offline-first sync, then multilingual and AI features.
+
+## Starter message for a new chat
+"I am building Marian, a multi-school Django school platform. Read AI_CONTEXT.md from my repo (I will paste it). Continue from Remaining backend item 1. Do not restart or duplicate models. Give brief step-by-step instructions, one action at a time, with the exact terminal location."
+
+## Progress log
+- Done (Remaining backend item 1): admin create/edit APIs, tested. Files: api/students_api.py, api/admin_create.py (POST academic-years, terms, streams, subjects, enrollments, teacher-assignments), api/admin_edit.py (GET/PATCH /api/<records>/<id>/, DELETE on teacher-assignments). Tests: api/test_students_api.py, test_admin_create.py, test_admin_edit.py.
+- Rules enforced: admin records forced into own school, linked records must share one school, other-school detail returns 404, teachers read-only, deactivate instead of delete, school never editable.
+- Known issues: Student.admission_number is unique across ALL schools (should be unique per school: needs migration). Subject.definition not yet validated against the school's curriculum.
+- Next: fix admission_number uniqueness, then Remaining backend items 2 and 3.
+- Cambridge catalogue scope (decided): Lower Secondary (Stages 7-9) and IGCSE (Years 10-11) only. Primary and AS/A Level deferred. Command extend_cambridge_catalogue adds Computing and ICT Starters (Stages 7-9); run after loaddata on a fresh DB. IGCSE subject list not yet verified against the official syllabus list. French/Arabic at Stages 7-9 are school extras, not Cambridge Lower Secondary frameworks.
+
+## Progress log (session 2)
+DONE and tested (131 tests): admin create/edit APIs for students, years, terms, streams, subjects, enrollments, teacher assignments (api/students_api.py, admin_create.py, admin_edit.py); admission_number unique per school; published rank on report card (admins only); paper weight edit/delete with publish lock (api/paper_edit.py); role matrix security tests (api/test_role_matrix.py); GET /api/dashboard/ role-aware (api/dashboard.py); Cambridge catalogue scoped to Lower Secondary + IGCSE (management command extend_cambridge_catalogue adds Computing and ICT Starters, run after loaddata on fresh DB); production hardening block at end of config/settings.py (secret-key guard, HTTPS cookies, JWT 15min/7day, login throttle rate defined).
+NOT DONE yet (next, in order):
+1. Login rate limit view: create api/auth_throttle.py (LoginRateThrottle scope "login" + LoginView subclass of TokenObtainPairView), point /api/auth/login/ at it, test with mock.patch.object(LoginRateThrottle, "THROTTLE_RATES", {"login": "3/min"}) and cache.clear().
+2. Pagination for list endpoints (function views currently return full lists; change response shape carefully, update tests).
+3. CORS (django-cors-headers) once the frontend origin is known; PostgreSQL via env vars; rotate SECRET_KEY (old one is in git history); set DJANGO_NUM_PROXIES when deployed behind a proxy; consider JWT blacklist.
+4. Verify IGCSE subject list against the official Cambridge syllabus list (structure of Cambridge Pathway already verified). Primary and AS/A Level deliberately deferred.
+5. API docs, backups, monitoring, secure deployment.
+6. Analytics beyond dashboard, then AI learning/assessment/early-warning features.
+7. Frontend (after backend is solid).
+PHONE TIP: long pastes get cut off. Send code in pastes of about 30 lines or fewer, using cat > for the first part and cat >> for the rest. If the prompt shows ">" the paste was cut off: close that terminal with the trash icon and open a new one.
+
+## Progress log (session 3) - supersedes the NOT DONE list in session 2
+DONE and tested (135 tests): login rate limit (api/auth_throttle.py, 10/min per IP, test override 1000/min); GET /api/health/ (api/health.py, no login, DB check, for uptime monitors).
+Known issues / decisions to revisit:
+- Teachers can read all marks and students in their own school via list endpoints (not only their assigned classes). Decide whether to restrict.
+- Subject.definition is not validated against the school's curriculum.
+- Login throttle is per IP. Behind a proxy set DJANGO_NUM_PROXIES, otherwise all users share one IP.
+- SECURE_PROXY_SSL_HEADER trusts X-Forwarded-Proto: only deploy behind a proxy that sets it.
+NOT DONE yet (next, in order):
+1. Pagination for list endpoints (function views return full lists; change response shape carefully, update tests and role matrix).
+2. CORS (django-cors-headers) once the frontend origin is known; PostgreSQL via env vars; rotate SECRET_KEY (old one is in git history); JWT blacklist for logout.
+3. Verify IGCSE subject list against the official Cambridge syllabus list. Primary and AS/A Level deliberately deferred.
+4. API docs, backups, monitoring (point an uptime monitor at /api/health/), secure deployment.
+5. Analytics beyond the dashboard, then AI learning, assessment and early-warning features using ExamResult history.
+6. Frontend (after backend is solid).
+PHONE TIP: long pastes get cut off. Send code in pastes of about 30 lines or fewer, using cat > for the first part and cat >> for the rest. If the prompt shows ">" the paste was cut off: close that terminal with the trash icon and open a new one.
+
+## Progress log (session 4) - supersedes the NOT DONE list in session 3
+DONE and tested (135 tests): pagination on all list endpoints (api/pagination.py: StandardPagination, 50 per page, ?page= and ?page_size= up to 200). List responses are now {count, next, previous, results}. Covers schools, students, academic-years, terms, curriculums, class-levels, streams, enrollments, subjects, teacher-assignments, performance, exams, subject-papers. Not paginated by design: /api/audit-logs/ (capped at 200 rows).
+NOT DONE yet (next, in order):
+1. JWT blacklist for logout.
+2. CORS (django-cors-headers) once the frontend origin is known; PostgreSQL via env vars; rotate SECRET_KEY (old one is in git history).
+3. Verify IGCSE subject list against the official Cambridge syllabus list. Primary and AS/A Level deliberately deferred.
+4. API docs, backups, monitoring (point an uptime monitor at /api/health/), secure deployment.
+5. Analytics beyond the dashboard, then AI learning, assessment and early-warning features using ExamResult history.
+6. Frontend (after backend is solid).
+NOTE: the full test run takes about 4-5 minutes. Run it once, wait for the prompt, and look for "OK".
+
+## Progress log (session 4, part 2)
+DONE and tested (139 tests): JWT blacklist for logout. token_blacklist app enabled, BLACKLIST_AFTER_ROTATION on, POST /api/auth/logout/ with {"refresh": token} returns 205 and blacklists it (api/auth_logout.py, api/test_logout.py). Needs "python manage.py migrate" on every new database, including production.
+NOT DONE yet (next, in order): CORS once the frontend origin is known; PostgreSQL via env vars; rotate SECRET_KEY (old one is in git history); then items 3-6 from the session 4 list above.
+
+## Progress log (session 4, part 3) - production settings
+DONE: PostgreSQL via env vars (DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT). sqlite stays the default for dev and tests. With DEBUG off and no DB_NAME the app refuses to start. CORS via DJANGO_CORS_ORIGINS (comma list; django-cors-headers loads only when set) and DJANGO_CSRF_TRUSTED_ORIGINS. See .env.example. psycopg and django-cors-headers added to requirements.txt. Checked by simulating the settings logic and by running tests on sqlite only. NOT yet tried against a real PostgreSQL server or a real frontend origin.
+SECRET_KEY rotation (do on the host, never commit it): python -c "from django.core.management.utils import get_random_secret_key as g; print(g())" then set the result as DJANGO_SECRET_KEY in the host's environment. Treat the old key in git history as compromised. On the new PostgreSQL database run: python manage.py migrate, then loaddata schools/fixtures/catalogues.json, then python manage.py extend_cambridge_catalogue.
+NOT DONE yet: try PostgreSQL for real, choose the host and set the env vars, rotate SECRET_KEY there, then IGCSE list verification, API docs, backups, monitoring, analytics, AI features, frontend.
+UPDATE (session 4): full 139 tests PASSED on a real local PostgreSQL 16 (about 4 min). The "confirm tests on PostgreSQL" item above is DONE. Still open: requirements.txt additions, .env.example, choose a host, rotate SECRET_KEY there.
+
+## Progress log (session 4, part 4) - first deployment (practice only)
+LIVE on Render free plan: https://school-ai-platform.onrender.com (service School.ai.platform, Frankfurt, free Postgres marian-db). /api/health/ returns ok and /admin/ login works. NO real student data on free tier: web sleeps after 15 min idle, free Postgres expires after about 30 days.
+Render Build Command: pip install -r requirements-prod.txt && cd backend && python manage.py collectstatic --noinput && python manage.py migrate && python manage.py loaddata schools/fixtures/catalogues.json && python manage.py extend_cambridge_catalogue && (python manage.py createsuperuser --noinput || true)
+Start Command: cd backend && gunicorn config.wsgi. Root directory blank (requirements-prod.txt is at repo root).
+Render env var names (values only in Render, never in git): DJANGO_SECRET_KEY, DJANGO_DEBUG=False, DJANGO_ALLOWED_HOSTS=.onrender.com, DJANGO_NUM_PROXIES=1, DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DJANGO_SUPERUSER_USERNAME, DJANGO_SUPERUSER_EMAIL, DJANGO_SUPERUSER_PASSWORD. Render Shell is a paid feature, so seeding happens in the build command.
+NOT DONE yet: test live API login/logout with curl; before real schools: paid plan (about 13 USD a month web plus small Postgres), backups, uptime monitor on /api/health/, IGCSE list check, API docs, analytics, AI features, frontend.
+VERIFIED LIVE (Render free plan): login OK, /api/schools/ paginated (200, keys count/next/previous/results), logout 205, refresh after logout 401. Test script idea: login, list, logout, refresh via urllib (not stored in repo).
+See HANDOFF.md for the latest summary and next steps.
+
+## Progress log (session 6, 3 Oct 2026) - READ THIS FIRST, then HANDOFF.md
+STATE: backend and frontend live on Render; 171 tests pass (python manage.py test, about 5 min). Owner works ONLY on a phone in Codespaces: ONE action per message, pastes of 30 lines or fewer with the exact terminal path, files split with cat > then cat >>, ask for exact output (wc -l counts) before trusting success. Check git status --short before every commit and add only files you wrote.
+DONE and pushed this session: Terms.jsx (academic years and terms, Edit dates, in Setup); POST /api/auth/change-password/ + Password.jsx on Home; DEPUTY role (SchoolAdminProfile.is_deputy, migration 0025, api/deputies.py, Deputies.jsx in People for the non-deputy admin only, /api/auth/me/ returns is_deputy; removing a deputy deletes the profile and deactivates the user).
+OWNER RULES: ranks and results are seen by the school administrator and the deputies he appoints, not by teachers or parents. A deputy can do everything the admin can EXCEPT appoint or remove deputies. Each school sets its own term dates.
+IN PROGRESS, login redesign (owner spec): Welcome page built (frontend/src/Welcome.jsx + welcome.css: logo, activity list, SVG savanna, 3 drawn students, Log in button; App.jsx shows Welcome then Login via a "go" state); owner has not yet confirmed how it looks on the phone.
+LOGIN SPEC STILL TO BUILD: username first; password field appears once the username is filled; Log in button hidden until the password has 4+ characters (UI gate only), then fades in; on submit the page folds and the password box rotates (flip) while the server checks. WRONG password: cute baby elephant mascot shakes its head sadly, password clears for retry (generic message, never reveal whether the username exists). RIGHT password: elephant smiles, opens the door of a house, waves a welcome, then the app opens. Files to create: Login.jsx (move Login out of App.jsx), Mascot.jsx (states idle/sad/happy), login.css. SVG and CSS transforms only (low-end Android), honour prefers-reduced-motion. Never put a CSS animation on an SVG element that has a transform attribute: wrap it in an outer <g>. Use drawn illustrations, not photos of children.
+CHECK JSX WITHOUT node_modules (Claude sandbox): typescript.transpileModule (jsx ReactJSX) then react-dom/server renderToString; tools are in /home/claude/.npm-global/lib/node_modules.
+STILL OPEN: owner's other look fixes (ask for a numbered list with the screen name); parent and student screens; create schools and the first admin in-app; real logo files; teacher screens limited to own classes; IGCSE list verification; paid Render plan, strong admin password and backups before real schools; offline sync and extra languages last.
+Starter for a new chat: "I am building Marian. Read AI_CONTEXT.md and HANDOFF.md from my repo. The login redesign is finished (see Session 9). One action at a time."
+## Session 7 (4 Oct 2026): login redesign
+DONE (checked in a browser preview; owner likes the design):
+- New login: transparent black/gold glass box, "Welcome Back", username + password with eye button, yellow Sign In. Files: frontend/src/Login.jsx, login.css, backgrounds.css. App.jsx now imports Login from ./Login; the old function was renamed OldLogin (unused, safe to delete with the Scene import).
+- Two corners (top-left, bottom-right) look folded like dog-ears.
+- Success animation just pasted, NOT yet confirmed on the phone: corners fold inward, gold creases cover the box, MARIAN logo seal, box zooms into the dashboard (.shell fades in).
+- Left out on purpose (no backend): Google/Apple login, Sign Up, Remember me, password reset ("Forgot password?" says ask the administrator).
+- Why old background edits never worked: the Scene.jsx SVG covers CSS backgrounds, and body in app.css paints the app blue.
+
+REMAINING (in order):
+1. Save Login.jsx and login.css, then confirm the new login animation on the phone.
+2. Login background: still a placeholder gold gradient (--bg-login in backgrounds.css). Owner uploaded pictures to frontend/src/assets. Need exact file names, then use url(./assets/NAME).
+3. Picture inside the login box (student at the door, top banner replacing the logo row). CSS class .lgpic already exists. Import the picture from assets and add <img className="lgpic"> in Login.jsx.
+4. Welcome background (Welcome.jsx, Scene.jsx, welcome.css). Owner has uncommitted experiments: Universe.jsx, universe.css, Welcome.jsx.backup.
+5. Background inside the app tabs (body gradient in app.css). Move it to backgrounds.css. A light background also needs the card and text colors changed.
+6. Small fixes: splash tagline overlaps MARIAN; delete unused App.css (capital A, Vite leftover).
+7. git add, commit and push so Render rebuilds the live site.
+## Session 8 (4 Oct 2026) READ HANDOFF.md "SESSION 8" FIRST
+IGNORE the old "Remaining backend" and NOT DONE lists above: all backend items are done. Backend and frontend are live on Render; 171 backend tests pass.
+Frontend files in frontend/src: App.jsx (Dash, Home and the tab map), Login.jsx and login.css (gold login), app.css (shared theme, v2 block at the end), Logo.jsx, Intro.jsx and intro.css (pre-login animation), Splash.jsx.
+Old Welcome, Scene, Universe and Mascot files and the old pictures were removed. Nothing is left alone on purpose now.
+OPEN ITEMS: dashboard redesign steps 2 to 7 in HANDOFF.md; teacher screens limited to own classes; parent and student screens; creating schools and the first admin in-app; real logo files; IGCSE list check; paid Render plan, strong admin password and backups before real schools (free Postgres expires, no real student data).
+Starter for a new chat: "I am building Marian. Read HANDOFF.md SESSION 8 and AI_CONTEXT.md in my repo. Continue the dashboard redesign at step 2. One action at a time."
+## Session 9 (4 Oct 2026): login finished, cleanup
+DONE and pushed: login box has the student-at-the-door picture inside the box only (assets/login-pic.png), gold ribbon background behind it (assets/login-bg.svg, set in backgrounds.css as --bg-login), glass box with thin outline and outlined corner pieces that fold in on success, then the box closes and the logo shows. Rows in reference order: Welcome Back, Username, Password (after a username), Remember me + Forgot password?, Sign In (after 4+ characters), OR CONTINUE WITH, Google/Apple, Sign Up.
+Google, Apple, Sign Up, Forgot password and Remember me are visual only (a note says so); no backend for them.
+Bug fixed: login icons used class "ic", which clashed with intro.css cards. Login icons are now class "lic". Never reuse generic class names across css files.
+Backend: DJANGO_DEBUG now defaults to False (set DJANGO_DEBUG=True in Codespaces before runserver or tests). Render has DJANGO_DEBUG, DJANGO_SECRET_KEY and DB_NAME set.
+Cleanup done: index.css template rules removed, color-scheme dark in app.css, duplicate print block removed, unused hero.png, react.svg, vite.svg deleted. App.css and the tree scene no longer exist.
