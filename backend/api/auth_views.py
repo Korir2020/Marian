@@ -33,4 +33,5 @@ def me(request):
         "role": role,
         "is_deputy": is_deputy,
         "school": {"id": school.id, "name": school.name} if school else None,
+        "setup_complete": (school.setup_completed_at is not None) if school else None,
     })

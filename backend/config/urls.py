@@ -15,6 +15,8 @@ from api.views import (
     enrollment_list, subject_list,
 )
 
+from api import setup_views
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/schools/', school_list),
@@ -230,6 +232,8 @@ urlpatterns += [
     path('api/school-registration/status/', school_register_status),
     path('api/admin/school-registrations/', registration_admin_list),
     path('api/admin/school-registrations/<int:pk>/action/', registration_admin_action),
+    path('api/setup/', setup_views.setup_status),
+    path('api/setup/complete/', setup_views.setup_complete),
     path('api/teacher-transfers/', transfer_collection),
     path('api/teacher-transfers/targets/', transfer_targets),
     path('api/teacher-transfers/<int:pk>/action/', transfer_action),
