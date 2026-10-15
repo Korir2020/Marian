@@ -130,11 +130,18 @@ FRONTEND_URL = os.environ.get("DJANGO_FRONTEND_URL", "http://localhost:5173")
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
 
-MAILERS = {
-    "default": {
-        "BACKEND": "django.core.mail.backends.console.EmailBackend",
-    },
-}
+EMAIL_BACKEND = os.environ.get(
+    "DJANGO_EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend" if DEBUG
+    else "django.core.mail.backends.dummy.EmailBackend",
+)
+EMAIL_HOST = os.environ.get("DJANGO_EMAIL_HOST", "")
+EMAIL_PORT = int(os.environ.get("DJANGO_EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("DJANGO_EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("DJANGO_EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.environ.get("DJANGO_EMAIL_USE_TLS", "True") == "True"
+EMAIL_USE_SSL = os.environ.get("DJANGO_EMAIL_USE_SSL", "False") == "True"
+DEFAULT_FROM_EMAIL = os.environ.get("DJANGO_DEFAULT_FROM_EMAIL", "no-reply@marian.local")
 
 
 REST_FRAMEWORK = {
@@ -156,6 +163,8 @@ from django.core.exceptions import ImproperlyConfigured
 
 if not DEBUG and SECRET_KEY == "dev-only-insecure-key-change-me":
     raise ImproperlyConfigured("Set DJANGO_SECRET_KEY when DEBUG is off.")
+if not DEBUG and len(SECRET_KEY.encode("utf-8")) < 50:
+    raise ImproperlyConfigured("DJANGO_SECRET_KEY must be at least 50 bytes in production.")
 
 STATIC_ROOT = BASE_DIR / "staticfiles"
 X_FRAME_OPTIONS = "DENY"
@@ -167,6 +176,8 @@ if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_HSTS_SECONDS = int(os.environ.get("DJANGO_HSTS_SECONDS", "3600"))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = os.environ.get("DJANGO_HSTS_INCLUDE_SUBDOMAINS", "True") == "True"
+    SECURE_HSTS_PRELOAD = os.environ.get("DJANGO_HSTS_PRELOAD", "True") == "True"
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),

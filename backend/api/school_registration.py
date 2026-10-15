@@ -1,17 +1,21 @@
 import re
 import secrets
+from datetime import timedelta
 
-from django.contrib.auth.hashers import make_password
+from django.conf import settings
+from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
+from django.core.mail import send_mail
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework.decorators import (
     api_view, authentication_classes, permission_classes, throttle_classes)
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 from schools.models import MarkAuditLog, School, SchoolRegistration
 from .join_throttle import SchoolRegisterThrottle, SchoolRegStatusThrottle
@@ -22,8 +26,8 @@ USERNAME_RE = re.compile(r"^[\w.@+-]{3,150}$")
 TYPES = {t for t, _ in SchoolRegistration.TYPES}
 ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 STATUS_TEXT = {
-    "pending_verification": "Waiting for phone verification.",
-    "verified": "Phone verified.",
+    "pending_verification": "Waiting for administrator email verification.",
+    "verified": "Email verified.",
     "pending_approval": "Marian is reviewing your registration.",
     "needs_information": "Additional information required.",
     "approved": "Approved. You can sign in.",
@@ -70,6 +74,7 @@ def validate_submission(d):
 REQUIRED = (
     ("school_name", "School name"), ("county", "County"),
     ("administrator_name", "Full name"), ("administrator_username", "Username"),
+    ("administrator_email", "Administrator email"),
     ("school_phone", "School phone"), ("administrator_phone", "Phone"),
     ("proposed_school_code", "School Code"), ("school_type", "School type"))
 
@@ -129,6 +134,24 @@ def check_password_and_unique(c, d, err):
     return pw
 
 
+def _send_registration_otp(reg):
+    if not settings.DEBUG and settings.EMAIL_BACKEND == "django.core.mail.backends.dummy.EmailBackend":
+        raise RuntimeError("Registration email delivery is not configured")
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    reg.otp_hash = make_password(code)
+    reg.otp_expires_at = timezone.now() + timedelta(minutes=10)
+    reg.otp_attempts = 0
+    reg.otp_send_count += 1
+    reg.otp_sent_at = timezone.now()
+    reg.save(update_fields=["otp_hash", "otp_expires_at", "otp_attempts", "otp_send_count", "otp_sent_at", "updated_at"])
+    send_mail(
+        "Verify your Marian school registration",
+        f"Your Marian verification code is {code}. It expires in 10 minutes. If you did not request this, ignore this email.",
+        getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@marian.local"),
+        [reg.administrator_email], fail_silently=False,
+    )
+
+
 def applicant_view(reg):
     """Only what the applicant may see: no notes, no hashes."""
     out = {"reference": reg.reference, "school_name": reg.school_name,
@@ -162,10 +185,40 @@ def school_register(request):
                 school=None, user=None, action="school_reg_submitted",
                 details={"reference": reg.reference,
                          "school_code": reg.proposed_school_code})
+            _send_registration_otp(reg)
     except IntegrityError:
         bad["errors"] = {"proposed_school_code": "That School Code is not available."}
         return Response(bad, status=400)
+    except RuntimeError:
+        return Response({"detail": "School registration email delivery is not configured."}, status=503)
     return Response(applicant_view(reg), status=201)
+
+
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([AllowAny])
+@throttle_classes([SchoolRegStatusThrottle])
+@extend_schema(responses={200: OpenApiResponse(description="Applicant email verified."), 400: OpenApiResponse(description="Invalid or expired verification code."), 429: OpenApiResponse(description="Too many verification attempts.")})
+def school_register_verify(request):
+    ref = str(request.data.get("reference", "")).strip().upper()
+    code = str(request.data.get("code", "")).strip()
+    reg = SchoolRegistration.objects.filter(reference=ref).first()
+    if reg is None or reg.status != "pending_verification":
+        return Response({"detail": "The verification code is invalid or expired."}, status=400)
+    if reg.otp_attempts >= 5 or not reg.otp_expires_at or reg.otp_expires_at <= timezone.now():
+        return Response({"detail": "The verification code is invalid or expired."}, status=400)
+    reg.otp_attempts += 1
+    if not re.fullmatch(r"\d{6}", code) or not check_password(code, reg.otp_hash):
+        reg.save(update_fields=["otp_attempts", "updated_at"])
+        return Response({"detail": "The verification code is invalid or expired."}, status=400)
+    reg.status = "verified"
+    reg.verification_status = "verified"
+    reg.verified_at = timezone.now()
+    reg.otp_hash = ""
+    reg.save(update_fields=["status", "verification_status", "verified_at", "otp_hash", "otp_attempts", "updated_at"])
+    MarkAuditLog.objects.create(school=None, user=None, action="school_admin_verified",
+                                details={"reference": reg.reference})
+    return Response(applicant_view(reg))
 
 
 @api_view(["POST"])

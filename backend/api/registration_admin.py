@@ -50,11 +50,14 @@ def registration_admin_action(request, pk):
             MarkAuditLog.objects.create(school=None, user=request.user, action="school_reg_rejected", details={"reference": reg.reference, "reason": reason})
             return Response(_summary(reg))
         if action != "approve": return Response({"detail": "Action must be approve or reject."}, status=400)
+        if reg.verification_status != "verified":
+            return Response({"detail": "The administrator email must be verified before approval."}, status=409)
         if reg.status == "approved" and reg.school_id:
             return Response(_summary(reg))
         if reg.status == "rejected": return Response({"detail": "A rejected registration must be resubmitted."}, status=409)
         if School.objects.filter(code__iexact=reg.proposed_school_code).exclude(pk=reg.school_id).exists(): return Response({"detail": "The school code is already in use."}, status=409)
         existing = User.objects.filter(username__iexact=reg.administrator_username).first()
+        if existing and not reg.school_id: return Response({"detail": "The administrator username is already in use."}, status=409)
         if existing and not SchoolAdminProfile.objects.filter(user=existing, school_id=reg.school_id).exists(): return Response({"detail": "The administrator username is already in use."}, status=409)
         try:
             if reg.school_id:

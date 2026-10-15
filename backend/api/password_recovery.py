@@ -17,14 +17,37 @@ from rest_framework.response import Response
 
 from .password_throttle import PasswordRateThrottle
 from .session_cleanup import end_other_sessions
+from schools.models import GuardianProfile, MarkAuditLog, SchoolAdminProfile, StaffProfile, TeacherProfile
 
 User = get_user_model()
 log = logging.getLogger(__name__)
 BAD = "This recovery link is invalid or expired."
 
 
+def _school_id(user):
+    for model in (SchoolAdminProfile, TeacherProfile, StaffProfile, GuardianProfile):
+        profile = model.objects.filter(user=user).first()
+        if profile:
+            return profile.school_id
+    return None
+
+
+def _audit(user, action):
+    MarkAuditLog.objects.create(school_id=_school_id(user), user=user, action=action)
+
+
+def _notify_password_changed(user):
+    if user.email:
+        send_mail(
+            "Your Marian password was changed",
+            "Your Marian account password was changed successfully. If you did not make this change, contact your school administrator or platform owner immediately.",
+            getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@marian.local"),
+            [user.email], fail_silently=True,
+        )
+
+
 def _generic():
-    return Response({"detail": "If an eligible account exists, recovery instructions will be sent to its verified email address."})
+    return Response({"detail": "If an eligible account exists, recovery instructions may be sent to its verified email address."})
 
 
 def _data(request):
@@ -68,6 +91,7 @@ def password_reset_request(request):
     user = _find_user(identifier)
     if user is None or not _deliverable(user) or _cooling_down(user):
         return _generic()
+    _audit(user, "password_recovery_requested")
     uid = urlsafe_base64_encode(force_bytes(user.pk))
     token = default_token_generator.make_token(user)
     base = getattr(settings, "FRONTEND_URL", "http://localhost:5173").rstrip("/")
@@ -107,4 +131,6 @@ def password_reset_confirm(request):
         locked.set_password(new_password)
         locked.save(update_fields=["password"])
         end_other_sessions(locked)
+        _audit(locked, "password_recovery_completed")
+        _notify_password_changed(locked)
     return Response({"detail": "Password reset successfully. You can now sign in."})

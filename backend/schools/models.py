@@ -659,3 +659,15 @@ class TeacherTransferRequest(models.Model):
     class Meta:
         ordering = ["-created_at"]
         constraints = [models.UniqueConstraint(fields=["teacher", "target_school"], condition=models.Q(status="pending"), name="unique_pending_teacher_transfer")]
+
+
+class SuperadminSecurity(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="superadmin_security")
+    totp_secret = models.CharField(max_length=64, blank=True)
+    mfa_enabled = models.BooleanField(default=False)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    recovery_code_hashes = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"MFA security for {self.user.username}"

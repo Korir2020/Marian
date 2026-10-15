@@ -194,6 +194,18 @@ urlpatterns += [
     path('api/admin-accounts/<int:pk>/status/', admin_status),
 ]
 
+from api.superadmin_safety import superadmin_list, superadmin_status
+urlpatterns += [
+    path('api/superadmin-accounts/', superadmin_list),
+    path('api/superadmin-accounts/<int:pk>/status/', superadmin_status),
+]
+from api.mfa import mfa_setup, mfa_confirm, mfa_disable
+urlpatterns += [
+    path('api/auth/mfa/setup/', mfa_setup),
+    path('api/auth/mfa/confirm/', mfa_confirm),
+    path('api/auth/mfa/disable/', mfa_disable),
+]
+
 from api.search import search
 
 urlpatterns += [
@@ -224,12 +236,13 @@ urlpatterns += [
     path('api/join-requests/<int:pk>/reject/', join_request_reject),
 ]
 
-from api.school_registration import school_register, school_register_status
+from api.school_registration import school_register, school_register_status, school_register_verify
 from api.registration_admin import registration_admin_list, registration_admin_action
 from api.teacher_transfers import transfer_collection, transfer_action, transfer_targets
 urlpatterns += [
     path('api/school-registration/', school_register),
     path('api/school-registration/status/', school_register_status),
+    path('api/school-registration/verify/', school_register_verify),
     path('api/admin/school-registrations/', registration_admin_list),
     path('api/admin/school-registrations/<int:pk>/action/', registration_admin_action),
     path('api/setup/', setup_views.setup_status),

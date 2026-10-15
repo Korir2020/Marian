@@ -20,7 +20,7 @@ def good(**over):
         "school_type": "secondary", "school_phone": "0712 345 678",
         "school_email": "", "county": "Nairobi", "sub_county": "",
         "address": "", "administrator_name": "Jane Doe",
-        "administrator_username": "janedoe", "administrator_email": "",
+        "administrator_username": "janedoe", "administrator_email": "jane@example.com",
         "administrator_phone": "+254712345678", "password": PW,
         "confirm_password": PW, "authorized": True}
     d.update(over)
@@ -159,6 +159,9 @@ class ReviewTests(APITestCase):
         self.admin = User.objects.create_user("schooladmin", password=PW)
         response = self.client.post(URL, good(), format="json")
         self.reg = SchoolRegistration.objects.get(reference=response.data["reference"])
+        self.reg.status = "verified"
+        self.reg.verification_status = "verified"
+        self.reg.save(update_fields=["status", "verification_status"])
 
     def test_non_superadmin_cannot_list_or_approve(self):
         self.client.force_authenticate(self.admin)
