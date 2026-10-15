@@ -13,6 +13,7 @@ const P = {
   Setup: "M4 7h9 M17 7h3 M4 17h3 M11 17h9 M15 4v6 M7 14v6",
   Schools: "M3 21h18 M5 21V7l7-4 7 4v14 M9 21v-6h6v6 M9 10h.01 M15 10h.01",
   Admins: "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z M9 12l2 2 4-4",
+  Fees: "M4 6h16v12H4z M8 10h8 M8 14h5",
 };
 export default function Ic({ n, size = 20 }) {
   return (<svg viewBox="0 0 24 24" width={size} height={size} fill="none"

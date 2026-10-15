@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { api, listAll as list } from "./api";
+import { api, listAll as list, upload } from "./api";
 import { useToast } from "./toastctx";
 import { Button, Input, Select, Card, DataTable } from "./ui";
 import { Loading, ErrorState } from "./ui";
@@ -12,15 +12,17 @@ export default function Setup() {
   const [lvl, setLvl] = useState(""), [sn, setSn] = useState("");
   const [bn, setBn] = useState(""), [bc, setBc] = useState("");
   const [busy, setBusy] = useState(false);
+  const [branding, setBranding] = useState(null), [logo, setLogo] = useState(null);
   const load = async () => {
     try {
       const get = (p) => list("/api/" + p + "/");
-      const [sm, sj, cl, cu] = await Promise.all(paths.map(get));
+      const [sm, sj, cl, cu, br] = await Promise.all([...paths.map(get), api("/api/school/branding/")]);
       const code = (c) => (cu.find((u) => u.id === c.curriculum) || {}).code || "";
       const lab = (c) => (code(c) + " " + (c.name || "")).trim();
       const level = (s) => cl.find((c) => c.id === s.class_level) || {};
       setX({ sj, cl: cl.map((c) => ({ id: c.id, label: lab(c) })),
         sm: sm.map((s) => ({ ...s, label: lab(level(s)) + " " + s.name })) });
+      if (br.ok) setBranding(await br.json());
       setBad(false);
     } catch { setBad(true); }
   };
@@ -43,6 +45,12 @@ export default function Setup() {
   ];
   return (
     <div>
+      <Card title="School identity">
+        <p className="sub">Upload a PNG, JPG, JPEG, or WEBP logo up to 2 MB. It will appear on report cards and fee receipts.</p>
+        {branding && <div className="branding-preview">{branding.logo_url ? <img src={branding.logo_url} alt={`${branding.name} logo`} /> : <span>No logo uploaded</span>}<b>{branding.name}</b></div>}
+        <Input id="su-logo" label="School logo" type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setLogo(e.target.files[0] || null)} />
+        <Button kind="teal" busy={busy} disabled={!logo} onClick={async () => { setBusy(true); const fd = new FormData(); fd.append("logo", logo); const r = await upload("/api/school/branding/", fd); setBusy(false); if (r.ok) { toast("Logo uploaded", "ok"); load(); setLogo(null); } else toast("Logo upload failed", "err"); }}>Upload logo</Button>
+      </Card>
       <h2>Classes and subjects</h2>
       <Card title="Streams">
         <DataTable cols={scols} rows={x.sm} search="Search streams"

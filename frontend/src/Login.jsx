@@ -9,7 +9,7 @@ const USER = "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 
 const LOCK = "M6 11h12v9H6zM8 11V8a4 4 0 0 1 8 0v3";
 const EYE = "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z";
 
-export default function Login({ onDone }) {
+export default function Login({ onDone, onForgot }) {
   const [u, setU] = useState(""), [p, setP] = useState(""), [see, setSee] = useState(false), [err, setErr] = useState(""), [st, setSt] = useState(""), [note, setNote] = useState("");
   const calm = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const go = async (e) => {
@@ -27,7 +27,7 @@ export default function Login({ onDone }) {
         <input id="lp" onFocus={(e) => setTimeout(() => e.target.scrollIntoView({ block: "center", behavior: "smooth" }), 350)} placeholder="Your password" type={see ? "text" : "password"} autoComplete="current-password" value={p} onChange={(e) => setP(e.target.value)} />
         <button type="button" className="eye" onClick={() => setSee(!see)} aria-label={see ? "Hide password" : "Show password"}><Ic d={EYE} /></button></div></div>
     {u.trim() && <div className="rmrow fade">
-      <button type="button" className="lnk" onClick={() => setNote("Forgot your password? Teachers and deputies: ask your school administrator. Administrators: contact the Marian platform owner.")}>Forgot password?</button></div>}
+      <button type="button" className="lnk" onClick={onForgot}>Forgot password?</button></div>}
     {p.length >= 4 && <button className="sign fade" disabled={!!st}>{st === "wait" ? "Checking..." : "Sign In  →"}</button>}
     {err && <p className="lerr">{err}</p>}
     {note && !err && <p className="lnote">{note}</p>}

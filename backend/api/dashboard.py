@@ -1,10 +1,12 @@
-from django.db.models import Count
+from django.db.models import Count, Sum
+from django.utils import timezone
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from schools.models import (
     Enrollment, Exam, Performance, School, SchoolAdminProfile, Stream,
-    Student, Subject, TeacherAssignment, TeacherProfile, Term,
+    Student, Subject, TeacherAssignment, TeacherProfile, Term, StudentFee,
+    FeePayment,
 )
 from .views import _scope
 
@@ -37,6 +39,14 @@ def _admin_data(school_id):
     exams = {"draft": 0, "published": 0}
     for row in Exam.objects.filter(school_id=school_id).values("status").annotate(n=Count("id")):
         exams[row["status"]] = row["n"]
+    fees = StudentFee.objects.filter(student__school_id=school_id)
+    fee_totals = fees.aggregate(due=Sum("amount_due"), paid=Sum("amount_paid"))
+    due = fee_totals["due"] or 0
+    paid = fee_totals["paid"] or 0
+    overdue = fees.filter(fee_structure__due_date__lt=timezone.localdate()).exclude(status__in=["paid", "waived"])
+    recent_payments = FeePayment.objects.filter(
+        student_fee__student__school_id=school_id
+    ).select_related("student_fee__student").order_by("-paid_at")[:5]
     return {
         "role": "school_admin",
         "students": Student.objects.filter(school_id=school_id).count(),
@@ -49,6 +59,14 @@ def _admin_data(school_id):
         "marks_by_status": _status_counts(marks.filter(term=term) if term else marks.none()),
         "awaiting_approval": marks.filter(status="submitted").count(),
         "exams": exams,
+        "fees": {"invoices": fees.count(), "amount_due": str(due),
+                 "amount_paid": str(paid), "balance": str(due - paid),
+                 "collection_percentage": round(float(paid / due * 100), 1) if due else 0,
+                 "overdue_amount": str(overdue.aggregate(x=Sum("amount_due"))["x"] or 0),
+                 "recent_payments": [{"student": str(p.student_fee.student),
+                                      "amount": str(p.amount), "method": p.method,
+                                      "reference": p.reference, "paid_at": p.paid_at}
+                                     for p in recent_payments]},
     }
 
 

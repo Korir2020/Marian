@@ -3,7 +3,7 @@ from decimal import Decimal
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from schools.models import Enrollment, Exam, ExamResult, Performance, SchoolAdminProfile, Student, Term
+from schools.models import Enrollment, Exam, ExamResult, GuardianProfile, Performance, SchoolAdminProfile, Student, Term
 from .permissions import get_user_school_id, restrict_for_teacher
 
 
@@ -31,10 +31,14 @@ def report_card(request, student_id, term_id):
     students = Student.objects.all()
     if not request.user.is_superuser:
         school_id = get_user_school_id(request.user)
-        if school_id is None:
+        guardian = GuardianProfile.objects.filter(user=request.user).first()
+        if guardian:
+            students = students.filter(guardians__guardian=guardian)
+        elif school_id is None:
             return Response({"detail": "School access not assigned."}, status=403)
-        students = students.filter(school_id=school_id)
-    students = restrict_for_teacher(request.user, students)
+        else:
+            students = students.filter(school_id=school_id)
+            students = restrict_for_teacher(request.user, students)
     student = students.filter(pk=student_id).first()
     if student is None:
         return Response({"detail": "Not found."}, status=404)

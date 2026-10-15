@@ -54,6 +54,14 @@ export async function api(path, method = "GET", body) {
   return r;
 }
 
+export async function upload(path, formData) {
+  const run = () => fetch(`${BASE}${path}`, { method: "POST", headers: { Authorization: `Bearer ${access}` }, body: formData, credentials: "include" });
+  if (!access) await refresh();
+  let r = await run();
+  if (r.status === 401 && (await refresh())) r = await run();
+  return r;
+}
+
 export async function logout() {
   try { await post("/api/auth/logout/", {}); } catch (e) {}
   access = null;

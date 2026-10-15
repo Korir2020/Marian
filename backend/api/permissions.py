@@ -51,7 +51,8 @@ def restrict_for_teacher(user, qs):
     from schools.models import (
         Enrollment, Performance, Student, Subject, TeacherAssignment,
     )
-    rows = TeacherAssignment.objects.filter(teacher__user=user)
+    profile = TeacherProfile.objects.filter(user=user).first()
+    rows = TeacherAssignment.objects.filter(teacher__user=user, school_id=profile.school_id)
     mine = list(rows.values_list("subject_id", "stream_id"))
     streams = {st for _, st in mine}
     m = qs.model

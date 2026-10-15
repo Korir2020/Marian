@@ -53,7 +53,7 @@ function useReveal() {
   }, []);
 }
 
-export default function Landing({ onStart, onSignIn }) {
+export default function Landing({ onStart, onRegister, onSignIn }) {
   useReveal();
   return (<div className="mu-ld">
     <div className="mu-ld-hero"><Logo size={76} />
@@ -73,6 +73,7 @@ export default function Landing({ onStart, onSignIn }) {
     <p className="mu-pub-note">Joining a school? You need its School Code.</p>
     <div className="mu-ld-bar">
       <Button kind="teal" onClick={onStart}>Get Started</Button>
+      <Button kind="ghost" onClick={onRegister}>Register a school</Button>
       <Button kind="secondary" onClick={onSignIn}>Sign In</Button></div>
   </div>);
 }

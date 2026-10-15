@@ -1,10 +1,21 @@
 from django.contrib.auth.password_validation import validate_password
+from django.conf import settings
+from django.core.mail import send_mail
 from django.core.exceptions import ValidationError
 from rest_framework.decorators import api_view, throttle_classes
 from rest_framework.response import Response
 
 from .password_throttle import PasswordRateThrottle
 from .session_cleanup import end_other_sessions
+from schools.models import GuardianProfile, MarkAuditLog, SchoolAdminProfile, StaffProfile, TeacherProfile
+
+
+def _school_id(user):
+    for model in (SchoolAdminProfile, TeacherProfile, StaffProfile, GuardianProfile):
+        profile = model.objects.filter(user=user).first()
+        if profile:
+            return profile.school_id
+    return None
 
 
 @api_view(["POST"])
@@ -26,4 +37,12 @@ def change_password(request):
     user.save()
     end_other_sessions(user, request.data.get("refresh")
         or request.COOKIES.get("marian_rt"))
+    MarkAuditLog.objects.create(school_id=_school_id(user), user=user, action="password_changed")
+    if user.email:
+        send_mail(
+            "Your Marian password was changed",
+            "Your Marian account password was changed successfully. If you did not make this change, contact your school administrator or platform owner immediately.",
+            getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@marian.local"),
+            [user.email], fail_silently=True,
+        )
     return Response({"detail": "Password changed."})

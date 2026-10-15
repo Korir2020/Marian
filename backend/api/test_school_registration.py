@@ -20,7 +20,7 @@ def good(**over):
         "school_type": "secondary", "school_phone": "0712 345 678",
         "school_email": "", "county": "Nairobi", "sub_county": "",
         "address": "", "administrator_name": "Jane Doe",
-        "administrator_username": "janedoe", "administrator_email": "",
+        "administrator_username": "janedoe", "administrator_email": "jane@example.com",
         "administrator_phone": "+254712345678", "password": PW,
         "confirm_password": PW, "authorized": True}
     d.update(over)
@@ -151,3 +151,49 @@ class StatusTests(APITestCase):
         self.assertIn(r.status_code, (400, 401))
         self.client.cookies.clear()
         self.assertEqual(self.client.get("/api/students/").status_code, 401)
+
+class ReviewTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.root = User.objects.create_superuser("root", "root@example.com", "Root-secure-pass")
+        self.admin = User.objects.create_user("schooladmin", password=PW)
+        response = self.client.post(URL, good(), format="json")
+        self.reg = SchoolRegistration.objects.get(reference=response.data["reference"])
+        self.reg.status = "verified"
+        self.reg.verification_status = "verified"
+        self.reg.save(update_fields=["status", "verification_status"])
+
+    def test_non_superadmin_cannot_list_or_approve(self):
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self.client.get("/api/admin/school-registrations/").status_code, 403)
+        self.assertEqual(self.client.post(f"/api/admin/school-registrations/{self.reg.id}/action/", {"action": "approve"}, format="json").status_code, 403)
+
+    def test_superadmin_approval_provisions_school_and_admin(self):
+        self.client.force_authenticate(self.root)
+        response = self.client.post(f"/api/admin/school-registrations/{self.reg.id}/action/", {"action": "approve"}, format="json")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.reg.refresh_from_db()
+        self.assertEqual(self.reg.status, "approved")
+        self.assertIsNotNone(self.reg.school_id)
+        self.assertTrue(SchoolAdminProfile.objects.filter(user__username="janedoe", school=self.reg.school).exists())
+        self.assertTrue(User.objects.get(username="janedoe").check_password(PW))
+        self.assertTrue(MarkAuditLog.objects.filter(action="school_reg_approved").exists())
+
+    def test_approval_is_idempotent(self):
+        self.client.force_authenticate(self.root)
+        url = f"/api/admin/school-registrations/{self.reg.id}/action/"
+        self.assertEqual(self.client.post(url, {"action": "approve"}, format="json").status_code, 200)
+        self.assertEqual(self.client.post(url, {"action": "approve"}, format="json").status_code, 200)
+        self.assertEqual(School.objects.count(), 1)
+        self.assertEqual(User.objects.filter(username="janedoe").count(), 1)
+        self.assertEqual(SchoolAdminProfile.objects.filter(user__username="janedoe").count(), 1)
+
+    def test_rejection_requires_reason_and_is_audited(self):
+        self.client.force_authenticate(self.root)
+        url = f"/api/admin/school-registrations/{self.reg.id}/action/"
+        self.assertEqual(self.client.post(url, {"action": "reject"}, format="json").status_code, 400)
+        response = self.client.post(url, {"action": "reject", "reason": "Unable to verify ownership."}, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.reg.refresh_from_db()
+        self.assertEqual(self.reg.status, "rejected")
+        self.assertTrue(MarkAuditLog.objects.filter(action="school_reg_rejected").exists())

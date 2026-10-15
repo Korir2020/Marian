@@ -11,6 +11,7 @@ const meter = { display: "flex", height: 10, borderRadius: 6,
 
 export default function Stats({ d }) {
   const adm = d.role === "school_admin", x = d.exams || {};
+  const fees = d.fees || {};
   const m = (adm ? d.marks_by_status : d.my_marks_by_status) || {};
   const tot = K.reduce((a, k) => a + (m[k] || 0), 0);
   const pub = x.published || 0;
@@ -22,6 +23,7 @@ export default function Stats({ d }) {
     ["Subjects", d.subjects, "Active subjects"],
     ["Awaiting", d.awaiting_approval, "Marks to approve"],
     ["Exams", (x.draft || 0) + pub, pub + " published"],
+    ["Balance", "KES " + Number(fees.balance || 0).toLocaleString(), `${fees.collection_percentage || 0}% collected`],
   ] : [["Classes", (d.assignments || []).length, "Subjects you teach"]];
   return (
     <>
@@ -38,6 +40,12 @@ export default function Stats({ d }) {
         </div>
         {!tot && <p>No marks entered this term yet.</p>}
       </Card>
+      {adm && <Card title="Fee collection">
+        <p><b>{fees.collection_percentage || 0}%</b> collected · <b>KES {Number(fees.overdue_amount || 0).toLocaleString()}</b> overdue</p>
+        {(fees.recent_payments || []).length === 0 ? <p>No payments recorded yet.</p> : (fees.recent_payments || []).map((p, i) => (
+          <div key={i} className="dash-payment"><span><b>{p.student}</b><small>{p.method}{p.reference ? ` · ${p.reference}` : ""}</small></span><strong>KES {Number(p.amount || 0).toLocaleString()}</strong></div>
+        ))}
+      </Card>}
     </>
   );
 }

@@ -13,6 +13,7 @@ class School(models.Model):
     school_type = models.CharField(max_length=30, blank=True)
     county = models.CharField(max_length=100, blank=True)
     sub_county = models.CharField(max_length=100, blank=True)
+    logo = models.FileField(upload_to="school-logos/", null=True, blank=True)
     setup_completed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -407,7 +408,10 @@ class Notification(models.Model):
     KINDS = [("join_requested", "New Staff Request"),
              ("join_completed", "New staff member"),
              ("join_approved", "Request approved"),
-             ("join_rejected", "Request rejected")]
+             ("join_rejected", "Request rejected"),
+             ("teacher_transfer_requested", "Teacher transfer requested"),
+             ("teacher_transfer_approved", "Teacher transfer approved"),
+             ("teacher_transfer_rejected", "Teacher transfer rejected")]
     school = models.ForeignKey("School", on_delete=models.CASCADE,
                                related_name="notifications")
     recipient = models.ForeignKey(settings.AUTH_USER_MODEL,
@@ -499,3 +503,171 @@ class SchoolRegistration(models.Model):
 
     def __str__(self):
         return f"{self.reference} {self.school_name}"
+
+
+class FeeStructure(models.Model):
+    school = models.ForeignKey("School", on_delete=models.CASCADE,
+                               related_name="fee_structures")
+    academic_year = models.ForeignKey("AcademicYear", on_delete=models.PROTECT,
+                                      related_name="fee_structures")
+    name = models.CharField(max_length=160)
+    description = models.TextField(blank=True)
+    amount = models.DecimalField(max_digits=12, decimal_places=2,
+                                 validators=[MinValueValidator(0)])
+    due_date = models.DateField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [models.UniqueConstraint(
+            fields=["school", "academic_year", "name"],
+            name="unique_fee_structure_per_year",
+        )]
+
+    def __str__(self):
+        return f"{self.name} - {self.academic_year}"
+
+
+class StudentFee(models.Model):
+    STATUS_CHOICES = [("pending", "Pending"), ("partial", "Partial"),
+                      ("paid", "Paid"), ("waived", "Waived")]
+    student = models.ForeignKey("Student", on_delete=models.CASCADE,
+                                related_name="fees")
+    fee_structure = models.ForeignKey("FeeStructure", on_delete=models.PROTECT,
+                                      related_name="student_fees")
+    amount_due = models.DecimalField(max_digits=12, decimal_places=2,
+                                     validators=[MinValueValidator(0)])
+    amount_paid = models.DecimalField(max_digits=12, decimal_places=2,
+                                      default=0, validators=[MinValueValidator(0)])
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES,
+                              default="pending")
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["student__last_name", "student__first_name"]
+        constraints = [models.UniqueConstraint(
+            fields=["student", "fee_structure"],
+            name="unique_student_fee_structure",
+        )]
+
+    @property
+    def balance(self):
+        return max(self.amount_due - self.amount_paid, 0)
+
+    def __str__(self):
+        return f"{self.student} - {self.fee_structure.name}"
+
+
+class FeePayment(models.Model):
+    METHODS = [("cash", "Cash"), ("mpesa", "M-Pesa"),
+               ("bank", "Bank"), ("other", "Other")]
+    student_fee = models.ForeignKey("StudentFee", on_delete=models.PROTECT,
+                                    related_name="payments")
+    amount = models.DecimalField(max_digits=12, decimal_places=2,
+                                 validators=[MinValueValidator(0.01)])
+    method = models.CharField(max_length=10, choices=METHODS, default="cash")
+    reference = models.CharField(max_length=80, blank=True)
+    received_by = models.ForeignKey(settings.AUTH_USER_MODEL,
+                                     on_delete=models.SET_NULL, null=True,
+                                     related_name="received_fee_payments")
+    paid_at = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-paid_at"]
+
+    def __str__(self):
+        return f"{self.student_fee.student} - {self.amount}"
+
+
+class GuardianProfile(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                                related_name="guardian_profile")
+    school = models.ForeignKey("School", on_delete=models.CASCADE,
+                               related_name="guardian_profiles")
+    phone = models.CharField(max_length=30, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.user.username
+
+
+class StudentGuardian(models.Model):
+    student = models.ForeignKey("Student", on_delete=models.CASCADE,
+                                related_name="guardians")
+    guardian = models.ForeignKey("GuardianProfile", on_delete=models.CASCADE,
+                                 related_name="student_links")
+    relationship = models.CharField(max_length=40, blank=True)
+    is_primary = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(
+            fields=["student", "guardian"], name="unique_student_guardian")]
+
+    def __str__(self):
+        return f"{self.guardian} - {self.student}"
+
+
+class AttendanceRecord(models.Model):
+    STATUSES = [("present", "Present"), ("absent", "Absent"), ("late", "Late"), ("excused", "Excused")]
+    student = models.ForeignKey("Student", on_delete=models.CASCADE, related_name="attendance_records")
+    date = models.DateField()
+    status = models.CharField(max_length=10, choices=STATUSES, default="present")
+    notes = models.CharField(max_length=255, blank=True)
+    recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="recorded_attendance")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["student", "date"], name="unique_student_attendance_date")]
+        ordering = ["-date", "student__last_name"]
+
+
+class StudentIntervention(models.Model):
+    REASONS = [("academic_decline", "Academic decline"), ("absence", "Repeated absence"), ("subject_weakness", "Subject weakness"), ("fees", "Fee-related concern"), ("welfare", "Behaviour or welfare concern"), ("other", "Other")]
+    OUTCOMES = [("open", "Open"), ("monitoring", "Monitoring"), ("improved", "Improved"), ("closed", "Closed")]
+    student = models.ForeignKey("Student", on_delete=models.CASCADE, related_name="interventions")
+    reason = models.CharField(max_length=30, choices=REASONS)
+    notes = models.TextField()
+    action_plan = models.TextField(blank=True)
+    follow_up_date = models.DateField(null=True, blank=True)
+    outcome = models.CharField(max_length=15, choices=OUTCOMES, default="open")
+    outcome_notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="created_interventions")
+    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+class TeacherTransferRequest(models.Model):
+    STATUSES = [("pending", "Pending"), ("approved", "Approved"), ("rejected", "Rejected")]
+    teacher = models.ForeignKey("TeacherProfile", on_delete=models.PROTECT, related_name="transfer_requests")
+    source_school = models.ForeignKey("School", on_delete=models.PROTECT, related_name="outgoing_teacher_transfers")
+    target_school = models.ForeignKey("School", on_delete=models.PROTECT, related_name="incoming_teacher_transfers")
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="requested_teacher_transfers")
+    approved_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="approved_teacher_transfers")
+    status = models.CharField(max_length=12, choices=STATUSES, default="pending")
+    reason = models.TextField(blank=True)
+    decision_note = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    decided_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [models.UniqueConstraint(fields=["teacher", "target_school"], condition=models.Q(status="pending"), name="unique_pending_teacher_transfer")]
+
+
+class SuperadminSecurity(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="superadmin_security")
+    totp_secret = models.CharField(max_length=64, blank=True)
+    mfa_enabled = models.BooleanField(default=False)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    recovery_code_hashes = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"MFA security for {self.user.username}"

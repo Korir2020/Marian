@@ -6,6 +6,7 @@ const A = [
   ["Reports", "Reports", "Reports"],
   ["Students", "Students", "Students"],
   ["Analytics", "Analytics", "Analytics"],
+  ["Fees", "Fees", "Fees"],
 ];
 const row = { display: "flex", flexWrap: "wrap", gap: "8px" };
 

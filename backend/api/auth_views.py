@@ -2,7 +2,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from schools.models import (
-    SchoolAdminProfile, StaffProfile, TeacherProfile)
+    GuardianProfile, SchoolAdminProfile, StaffProfile, TeacherProfile)
 
 
 @api_view(["GET"])
@@ -23,9 +23,15 @@ def me(request):
                 "school").filter(user=user).first()
             if staff:
                 role, school = staff.role, staff.school
+            else:
+                guardian = GuardianProfile.objects.select_related(
+                    "school").filter(user=user).first()
+                if guardian:
+                    role, school = "parent", guardian.school
     return Response({
         "username": user.username,
         "role": role,
         "is_deputy": is_deputy,
         "school": {"id": school.id, "name": school.name} if school else None,
+        "setup_complete": (school.setup_completed_at is not None) if school else None,
     })

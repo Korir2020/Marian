@@ -15,6 +15,8 @@ from api.views import (
     enrollment_list, subject_list,
 )
 
+from api import setup_views
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/schools/', school_list),
@@ -35,6 +37,7 @@ from api.auth_views import me
 from api.auth_logout import logout
 from api.auth_password import change_password
 from api.auth_cookie import CookieLoginView, CookieRefreshView
+from api.password_recovery import password_reset_request, password_reset_confirm
 
 urlpatterns += [
     path('api/auth/login/', CookieLoginView.as_view()),
@@ -42,6 +45,8 @@ urlpatterns += [
     path('api/auth/me/', me),
     path('api/auth/logout/', logout),
     path('api/auth/change-password/', change_password),
+    path('api/auth/password-reset/', password_reset_request),
+    path('api/auth/password-reset/confirm/', password_reset_confirm),
 ]
 
 from api.workflow import performance_action
@@ -181,11 +186,24 @@ urlpatterns += [
     path('api/approvals/summary/', approvals_summary),
 ]
 
-from api.admin_accounts import admin_account_list, admin_reset_password
+from api.admin_accounts import admin_account_list, admin_reset_password, admin_status
 
 urlpatterns += [
     path('api/admin-accounts/', admin_account_list),
     path('api/admin-accounts/<int:pk>/reset-password/', admin_reset_password),
+    path('api/admin-accounts/<int:pk>/status/', admin_status),
+]
+
+from api.superadmin_safety import superadmin_list, superadmin_status
+urlpatterns += [
+    path('api/superadmin-accounts/', superadmin_list),
+    path('api/superadmin-accounts/<int:pk>/status/', superadmin_status),
+]
+from api.mfa import mfa_setup, mfa_confirm, mfa_disable
+urlpatterns += [
+    path('api/auth/mfa/setup/', mfa_setup),
+    path('api/auth/mfa/confirm/', mfa_confirm),
+    path('api/auth/mfa/disable/', mfa_disable),
 ]
 
 from api.search import search
@@ -218,8 +236,57 @@ urlpatterns += [
     path('api/join-requests/<int:pk>/reject/', join_request_reject),
 ]
 
-from api.school_registration import school_register, school_register_status
+from api.school_registration import school_register, school_register_status, school_register_verify
+from api.registration_admin import registration_admin_list, registration_admin_action
+from api.teacher_transfers import transfer_collection, transfer_action, transfer_targets
 urlpatterns += [
     path('api/school-registration/', school_register),
     path('api/school-registration/status/', school_register_status),
+    path('api/school-registration/verify/', school_register_verify),
+    path('api/admin/school-registrations/', registration_admin_list),
+    path('api/admin/school-registrations/<int:pk>/action/', registration_admin_action),
+    path('api/setup/', setup_views.setup_status),
+    path('api/setup/complete/', setup_views.setup_complete),
+    path('api/teacher-transfers/', transfer_collection),
+    path('api/teacher-transfers/targets/', transfer_targets),
+    path('api/teacher-transfers/<int:pk>/action/', transfer_action),
 ]
+
+from api.fees import (
+    fee_summary, fee_structures, fee_invoices, fee_payment,
+    fee_payments, fee_waive, fee_report,
+)
+urlpatterns += [
+    path('api/fees/summary/', fee_summary),
+    path('api/fees/structures/', fee_structures),
+    path('api/fees/invoices/', fee_invoices),
+    path('api/fees/payments/', fee_payment),
+    path('api/fees/payment-history/', fee_payments),
+    path('api/fees/invoices/<int:pk>/waive/', fee_waive),
+    path('api/fees/report/', fee_report),
+]
+
+from api.parent_portal import parent_accounts, parent_children, parent_fees
+from api.documents import bulk_report_cards, fee_receipts
+from api.branding import school_branding
+from api.academic_reports import advanced_report
+from api.student_center import student_center
+from api.attendance import attendance_collection, interventions
+from api.student_import import student_import
+urlpatterns += [
+    path('api/parents/', parent_accounts),
+    path('api/parent/children/', parent_children),
+    path('api/parent/children/<int:student_id>/fees/', parent_fees),
+    path('api/documents/report-cards/', bulk_report_cards),
+    path('api/documents/fee-receipts/', fee_receipts),
+    path('api/school/branding/', school_branding),
+    path('api/analytics/advanced/<int:term_id>/', advanced_report),
+    path('api/students/<int:pk>/center/', student_center),
+    path('api/attendance/', attendance_collection),
+    path('api/students/<int:student_id>/interventions/', interventions),
+    path('api/students/import/', student_import),
+]
+
+from django.conf import settings
+from django.conf.urls.static import static
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

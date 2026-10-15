@@ -1,14 +1,14 @@
 import { useState, useEffect } from "react";
 import { api } from "./api";
 import { useToast } from "./toastctx";
-import { Button, Input, Modal, Card, Badge } from "./ui";
+import { Button, Input, Modal, Card, Badge, ConfirmDialog } from "./ui";
 import { DataTable, Loading, ErrorState } from "./ui";
 
 export default function Accounts() {
   const toast = useToast();
   const [rows, setRows] = useState(null), [bad, setBad] = useState(false);
   const [rp, setRp] = useState(null), [pw, setPw] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(false), [statusTarget, setStatusTarget] = useState(null);
   const load = async () => {
     try {
       const r = await api("/api/admin-accounts/");
@@ -29,6 +29,10 @@ export default function Accounts() {
     if (r.ok) { toast("Password reset for " + rp.username, "ok"); close(); }
     else toast("Failed: " + (j.detail || JSON.stringify(j)), "err");
   };
+  const changeStatus = async () => {
+    setBusy(true); const r = await api(`/api/admin-accounts/${statusTarget.id}/status/`, "PATCH", { is_active: !statusTarget.is_active }); const j = await r.json().catch(() => ({})); setBusy(false); setStatusTarget(null);
+    if (!r.ok) return toast(j.detail || "Could not change administrator status", "err"); toast(statusTarget.is_active ? "Administrator deactivated" : "Administrator activated", "ok"); load();
+  };
   if (bad) return <ErrorState text="Could not load administrators." onRetry={load} />;
   if (!rows) return <Loading />;
   const role = (p) => (p.is_deputy ? "Deputy" : "Administrator");
@@ -39,8 +43,7 @@ export default function Accounts() {
     { label: "Role", get: role, sort: true },
     { label: "Status", get: state, sort: true, render: (p) => (
       <Badge kind={p.is_active ? "ok" : "warn"}>{state(p)}</Badge>) },
-    { label: "Actions", render: (p) => (
-      <Button kind="ghost" size="sm" onClick={() => setRp(p)}>Reset password</Button>) },
+    { label: "Actions", render: (p) => (<><Button kind="ghost" size="sm" onClick={() => setRp(p)}>Reset password</Button> <Button kind={p.is_active ? "danger" : "teal"} size="sm" onClick={() => setStatusTarget(p)}>{p.is_active ? "Deactivate" : "Activate"}</Button></>) },
   ];
   return (
     <div>
@@ -58,6 +61,7 @@ export default function Accounts() {
           onChange={(e) => setPw(e.target.value)} />
         <p>They will be signed out everywhere.</p>
       </Modal>}
+      {statusTarget && <ConfirmDialog title={(statusTarget.is_active ? "Deactivate " : "Activate ") + statusTarget.username} text={statusTarget.is_active ? "They will be signed out and lose access. The system will prevent deactivating the last active administrator." : "Restore this administrator’s access?"} confirm={statusTarget.is_active ? "Deactivate" : "Activate"} danger={statusTarget.is_active} onNo={() => setStatusTarget(null)} onYes={changeStatus} />}
     </div>
   );
 }
