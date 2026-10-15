@@ -36,6 +36,7 @@ import ParentAccounts from "./ParentAccounts";
 import RegistrationReview from "./RegistrationReview";
 import TeacherTransfers from "./TeacherTransfers";
 import PasswordRecovery from "./PasswordRecovery";
+import SchoolRegistration from "./SchoolRegistration";
 import { useHashTab } from "./hashtab";
 import "./app.css";
 import "./light.css";
@@ -80,8 +81,11 @@ export default function App() {
   if (scr === "join") {
     return <Join onBack={to("landing")} onSignIn={to("login")} />;
   }
+  if (scr === "school-register") {
+    return <SchoolRegistration onBack={to("landing")} onSignIn={to("login")} />;
+  }
   if (scr === "landing") {
-    return <Landing onStart={to("join")} onSignIn={to("login")} />;
+    return <Landing onStart={to("join")} onRegister={to("school-register")} onSignIn={to("login")} />;
   }
   return <Intro onStart={to("landing")} />;
 }
