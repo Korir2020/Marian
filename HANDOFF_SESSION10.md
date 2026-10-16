@@ -24,3 +24,9 @@ DONE (build passes, 383 backend tests pass):
 NOT DONE: browser check of the new screens, auto-open wizard on first login, "resend code" (needs a backend endpoint), needs_information status.
 OPEN: DJANGO_EMAIL_* and DJANGO_FRONTEND_URL on Render (registration returns 503 without SMTP); replace DJANGO_SECRET_KEY; check Marian-app repo and branch.
 DEPLOY: Render deploys from original main. Backup: ~/marian-backup-2026-10-15.dump (keep it).
+
+## UPDATE 2 (same day, branch onboarding-ui)
+DONE since the note above (390 tests pass, build passes):
+- Auto-open: a non-deputy school admin with setup_complete false lands on the Setup tab when the URL has no tab (App.jsx).
+- Resend code: POST /api/school-registration/resend/ (api/resend_views.py, 7 tests). 60 s cooldown, max 5 sends in total, reuses SchoolRegStatusThrottle, audit "school_reg_resent", 503 without email. Button with countdown in SchoolRegistration.jsx.
+STILL NOT DONE: needs_information status (admin request-info action, applicant reply path); browser check of all new screens; SMTP (DJANGO_EMAIL_*, DJANGO_FRONTEND_URL) so registration and resend work live; replace DJANGO_SECRET_KEY; check Marian-app repo and branch.
