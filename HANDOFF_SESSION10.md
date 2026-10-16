@@ -30,3 +30,13 @@ DONE since the note above (390 tests pass, build passes):
 - Auto-open: a non-deputy school admin with setup_complete false lands on the Setup tab when the URL has no tab (App.jsx).
 - Resend code: POST /api/school-registration/resend/ (api/resend_views.py, 7 tests). 60 s cooldown, max 5 sends in total, reuses SchoolRegStatusThrottle, audit "school_reg_resent", 503 without email. Button with countdown in SchoolRegistration.jsx.
 STILL NOT DONE: needs_information status (admin request-info action, applicant reply path); browser check of all new screens; SMTP (DJANGO_EMAIL_*, DJANGO_FRONTEND_URL) so registration and resend work live; replace DJANGO_SECRET_KEY; check Marian-app repo and branch.
+
+## UPDATE 3 (end of session, pushed to original main)
+LIVE: onboarding UI (status screen, review filter and badge, /api/school/profile/, setup wizard, auto-open wizard, resend code) plus the landing button wrap fix. 390 backend tests pass, build passes.
+NEXT SESSION, in order:
+1. Browser check on the live site: Landing buttons (two rows, scroll to the bottom), school admin Setup tab wizard, superadmin Registrations Email badge and filter.
+2. SMTP on Render: DJANGO_EMAIL_* and DJANGO_FRONTEND_URL (set in Render, never paste values in chat). Without them registration and resend return 503. Then test a real registration.
+3. Replace DJANGO_SECRET_KEY (it appeared in earlier screenshots). Do it before real schools use the platform.
+4. Check Marian-app (static site) repo, branch, root directory and build command in Render.
+5. needs_information: add an admin "request_info" action with a required message (model field info_request_message already exists, no migration). First read how rejected registrations are handled to design the applicant resubmit path.
+6. Check marian-db creation date (free Postgres expires about 30 days after creation, no Render backups). Keep ~/marian-backup-2026-10-15.dump.
