@@ -17,3 +17,13 @@ def school_for_user(user):
 def suspended_school_for(user):
     school = school_for_user(user)
     return school if school is not None and school.is_suspended else None
+
+
+from rest_framework.permissions import BasePermission
+
+
+class SchoolNotSuspended(BasePermission):
+    message = MESSAGE
+
+    def has_permission(self, request, view):
+        return suspended_school_for(request.user) is None
