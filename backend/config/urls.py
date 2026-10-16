@@ -17,6 +17,7 @@ from api.views import (
 
 from api import setup_views
 from api import profile_views
+from api import resend_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -244,6 +245,7 @@ urlpatterns += [
     path('api/school-registration/', school_register),
     path('api/school-registration/status/', school_register_status),
     path('api/school-registration/verify/', school_register_verify),
+    path('api/school-registration/resend/', resend_views.school_register_resend),
     path('api/admin/school-registrations/', registration_admin_list),
     path('api/admin/school-registrations/<int:pk>/action/', registration_admin_action),
     path('api/setup/', setup_views.setup_status),

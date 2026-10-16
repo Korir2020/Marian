@@ -49,7 +49,7 @@ const Home = ({ me, d }) => (<div className="plain"><Hero me={me} d={d} />
 function Dash({ onOut }) {
   const [me, setMe] = useState(null), [d, setD] = useState(null), [tab, setTab] = useHashTab();
   useEffect(() => { (async () => {
-    const a = await api("/api/auth/me/"); if (a.status === 401) return onOut(); const m = await a.json(); setMe(m);
+    const a = await api("/api/auth/me/"); if (a.status === 401) return onOut(); const m = await a.json(); setMe(m); if (m.role === "school_admin" && m.setup_complete === false && !m.is_deputy && !window.location.hash) setTab("Setup");
     if (["none", "secretary"].includes(m.role)) return;
     if (m.role === "bursar") { setD({ role: "bursar" }); return; }
     if (m.role === "parent") { setD({ role: "parent" }); return; }
