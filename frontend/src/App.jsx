@@ -77,7 +77,22 @@ function Dash({ onOut }) {
 export default function App() {
   const [ok, setOk] = useState(!!localStorage.getItem("in"));
   const [scr, setScr] = useState(() => window.location.search.includes("recovery=1") ? "recovery" : "intro");
+  const [blocked, setBlocked] = useState(null);
+  useEffect(() => {
+    const h = (e) => setBlocked(e.detail || "This school account is suspended.");
+    window.addEventListener("marian:suspended", h);
+    return () => window.removeEventListener("marian:suspended", h);
+  }, []);
   const to = (x) => () => setScr(x);
+  if (blocked) return (
+    <div role="alert" style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
+      <div style={{ maxWidth: 420, textAlign: "center" }}>
+        <h1 style={{ fontSize: 22, marginBottom: 12, color: "inherit" }}>School account suspended</h1>
+        <p style={{ marginBottom: 20 }}>{blocked}</p>
+        <button onClick={async () => { await logout(); setBlocked(null); setOk(false); setScr("landing"); }} style={{ padding: "12px 20px", fontSize: 16 }}>Sign out</button>
+      </div>
+    </div>
+  );
   if (ok) return <Dash onOut={() => { setOk(false); setScr("landing"); }} />;
   if (scr === "login") return <Login onDone={() => setOk(true)} onForgot={to("recovery")} />;
   if (scr === "recovery") return <PasswordRecovery onBack={to("login")} />;
