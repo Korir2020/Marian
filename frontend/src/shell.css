@@ -59,3 +59,6 @@
   margin: 0 0 6px; border: 1px solid var(--mu-line); border-radius: 8px;
   background: var(--mu-card); color: var(--mu-text); }
 .mu-note.new { border-color: var(--mu-teal); background: var(--mu-teal-bg); }
+.mu-crumb { font-size: .8125rem; color: var(--mu-muted); margin: 0 0 4px; }
+.mu-crumb [aria-current] { color: var(--mu-navy); font-weight: 600; }
+.mu-ctx { margin: 0 0 12px; font-size: .8125rem; color: var(--mu-muted); }

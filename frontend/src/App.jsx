@@ -70,7 +70,7 @@ function Dash({ onOut }) {
     return <JoinStatus me={me} out={out} />;
   }
   const cur = tabs[tab] ? tab : "Home";
-  return (<Shell tabs={Object.keys(tabs)} tab={cur} go={setTab} me={me} out={out}>
+  return (<Shell tabs={Object.keys(tabs)} tab={cur} go={setTab} me={me} out={out} term={d && d.active_term ? d.active_term.name : null}>
     {d ? tabs[cur] : <Loading />}</Shell>);
 }
 
