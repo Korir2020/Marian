@@ -16,6 +16,7 @@ from api.views import (
 )
 
 from api import setup_views
+from api import profile_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -247,6 +248,7 @@ urlpatterns += [
     path('api/admin/school-registrations/<int:pk>/action/', registration_admin_action),
     path('api/setup/', setup_views.setup_status),
     path('api/setup/complete/', setup_views.setup_complete),
+    path('api/school/profile/', profile_views.school_profile),
     path('api/teacher-transfers/', transfer_collection),
     path('api/teacher-transfers/targets/', transfer_targets),
     path('api/teacher-transfers/<int:pk>/action/', transfer_action),

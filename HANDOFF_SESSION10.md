@@ -13,3 +13,14 @@ NEXT, in order:
 GIT: repo https://github.com/Korir2020/Marian (private). Push using `gh auth login`
 (browser device login). Never paste tokens into chats.
 RULES: inspect before editing, tests first, run full suite, commit by name.
+
+## UPDATE 2026-10-16 (branch onboarding-ui, NOT pushed yet)
+DONE (build passes, 383 backend tests pass):
+- SchoolStatus.jsx: applicant "Check my application" screen (Landing button, App.jsx route, uses POST /api/school-registration/status/).
+- RegistrationReview.jsx: status filter and email-verified badge.
+- Backend GET/PATCH /api/school/profile/ (api/profile_views.py, 10 tests in api/test_school_profile.py). Non-deputy school admin edits own school only. Reason: approval never filled location or county, so setup checklist "profile" could never complete.
+- SetupWizard.jsx: shown at top of the school admin Setup tab. Checklist, profile form, Finish setup (/api/setup/complete/).
+- Label "Senior / Secondary" (stored value stays "secondary").
+NOT DONE: browser check of the new screens, auto-open wizard on first login, "resend code" (needs a backend endpoint), needs_information status.
+OPEN: DJANGO_EMAIL_* and DJANGO_FRONTEND_URL on Render (registration returns 503 without SMTP); replace DJANGO_SECRET_KEY; check Marian-app repo and branch.
+DEPLOY: Render deploys from original main. Backup: ~/marian-backup-2026-10-15.dump (keep it).

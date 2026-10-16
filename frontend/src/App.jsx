@@ -16,6 +16,7 @@ import Attention from "./Attention";
 import TeacherTodo from "./TeacherTodo";
 import Students from "./Students";
 import Setup from "./Setup";
+import SetupWizard from "./SetupWizard";
 import Terms from "./Terms";
 import Password from "./Password";
 import Deputies from "./Deputies";
@@ -37,6 +38,7 @@ import RegistrationReview from "./RegistrationReview";
 import TeacherTransfers from "./TeacherTransfers";
 import PasswordRecovery from "./PasswordRecovery";
 import SchoolRegistration from "./SchoolRegistration";
+import SchoolStatus from "./SchoolStatus";
 import { useHashTab } from "./hashtab";
 import "./app.css";
 import "./light.css";
@@ -57,7 +59,7 @@ function Dash({ onOut }) {
   const need = (el) => (d.active_term ? el : <p className="plain">No active term yet. Create one in Setup first.</p>);
   const home = d && <><Home me={me} d={d} />{role === "teacher" && <TeacherTodo d={d} go={setTab} />}{role === "teacher" && <Mine d={d} />}{role === "school_admin" && <Attention d={d} go={setTab} />}{role === "school_admin" && <Quick go={setTab} tabs={{ Approve: 1, Exams: 1, Reports: 1, Students: 1, Analytics: 1, Fees: 1 }} />}{role === "school_admin" && <Activity />}<Password /></>;
   const tabs = role === "teacher" ? { Home: home, Marks: need(<Marks d={d} />), Attendance: <Attendance /> }
-    : role === "school_admin" ? { Home: home, Approve: <Approvals />, Exams: need(<Exams d={d} />), Reports: need(<ReportCards d={d} />), Analytics: need(<Analytics d={d} />), Attendance: <Attendance />, Fees: <Fees admin />, Documents: <BulkDocuments admin />, Students: need(<Students d={d} />), Parents: <ParentAccounts />, Transfers: <TeacherTransfers />, Teachers: need(<><Teachers />{me && !me.is_deputy && <Deputies />}</>), Staff: <Staff />, Setup: <><Terms /><Setup /></> }
+    : role === "school_admin" ? { Home: home, Approve: <Approvals />, Exams: need(<Exams d={d} />), Reports: need(<ReportCards d={d} />), Analytics: need(<Analytics d={d} />), Attendance: <Attendance />, Fees: <Fees admin />, Documents: <BulkDocuments admin />, Students: need(<Students d={d} />), Parents: <ParentAccounts />, Transfers: <TeacherTransfers />, Teachers: need(<><Teachers />{me && !me.is_deputy && <Deputies />}</>), Staff: <Staff />, Setup: <><SetupWizard /><Terms /><Setup /></> }
     : role === "bursar" ? { Fees: <Fees />, Documents: <BulkDocuments /> }
     : role === "parent" ? { Home: <Parent /> }
     : role === "superadmin" ? { Home: home, Schools: <Platform d={d} />, Registrations: <RegistrationReview />, Transfers: <TeacherTransfers />, Admins: <Accounts /> }
@@ -84,8 +86,11 @@ export default function App() {
   if (scr === "school-register") {
     return <SchoolRegistration onBack={to("landing")} onSignIn={to("login")} />;
   }
+  if (scr === "school-status") {
+    return <SchoolStatus onBack={to("landing")} onSignIn={to("login")} />;
+  }
   if (scr === "landing") {
-    return <Landing onStart={to("join")} onRegister={to("school-register")} onSignIn={to("login")} />;
+    return <Landing onStatus={to("school-status")} onStart={to("join")} onRegister={to("school-register")} onSignIn={to("login")} />;
   }
   return <Intro onStart={to("landing")} />;
 }
