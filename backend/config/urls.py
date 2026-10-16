@@ -294,3 +294,8 @@ urlpatterns += [
 from django.conf import settings
 from django.conf.urls.static import static
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+from api.school_suspension import school_suspension
+urlpatterns += [
+    path('api/schools/<int:pk>/suspension/', school_suspension),
+]
