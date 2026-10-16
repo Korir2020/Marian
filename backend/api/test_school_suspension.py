@@ -83,3 +83,15 @@ class SchoolSuspensionTests(APITestCase):
         self.a.is_suspended = True
         self.a.save()
         self.assertEqual(suspended_school_for(self.boss), self.a)
+
+    def test_suspended_school_blocked_on_normal_endpoint(self):
+        self.client.force_authenticate(self.boss)
+        self.assertNotEqual(self.client.get("/api/dashboard/").status_code, 403)
+        self.a.is_suspended = True
+        self.a.save()
+        r = self.client.get("/api/dashboard/")
+        self.assertEqual(r.status_code, 403)
+        self.assertIn("suspended", str(r.data.get("detail", "")).lower())
+        self.a.is_suspended = False
+        self.a.save()
+        self.assertNotEqual(self.client.get("/api/dashboard/").status_code, 403)
