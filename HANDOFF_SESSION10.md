@@ -40,3 +40,24 @@ NEXT SESSION, in order:
 4. Check Marian-app (static site) repo, branch, root directory and build command in Render.
 5. needs_information: add an admin "request_info" action with a required message (model field info_request_message already exists, no migration). First read how rejected registrations are handled to design the applicant resubmit path.
 6. Check marian-db creation date (free Postgres expires about 30 days after creation, no Render backups). Keep ~/marian-backup-2026-10-15.dump.
+
+## UPDATE 2026-10-16 (branch ui-pro, not merged, not browser-tested)
+DONE on ui-pro (build passes each step):
+- kit.jsx/kit.css: Dialog, ConfirmDialog, Tabs, Badge, EmptyState, Skeleton
+- Charts.jsx: SVG trend and distribution, used in Analytics.jsx
+- Exams.jsx results: class/stream scope switch, admission no, "No rank"
+- AuditLog.jsx: new Audit tab (school admin and superadmin), uses /api/audit-logs/ (mark changes only)
+- Shell: breadcrumb and "Active term" line (term prop from App.jsx)
+- Platform.jsx: platform totals, school profile dialog
+- StudentCenter.jsx: tabbed sections
+- Marks.jsx: inline "Use 1 to 100" message
+- Analytics insights card relabelled "Automated suggestions" (rule-based, not AI)
+Backups of patched files were in /tmp (lost on Cloud Shell reset); git history is the rollback.
+
+NEXT, in order:
+1. Browser-test every screen above, as superadmin, school admin, teacher, parent. Fix before merging.
+2. Housekeeping: rotate DJANGO_SECRET_KEY, fix 31-byte JWT signing key, SMTP on Render.
+3. Frontend: teacher assignment (max 4 subjects, classes/streams per subject), notification center (categories, priority, preferences), parent portal polish, logo options, phone/accessibility pass, unauthorized and session-expired screens.
+4. Backend with tests (do not invent endpoints): security center, school suspend and billing, platform health, fuller audit log.
+5. Merge ui-pro into main only after step 1, then deploy.
+RULES: inspect before editing, patch scripts assert one match, tests first, commit by name.
